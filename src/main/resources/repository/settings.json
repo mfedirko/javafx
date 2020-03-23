@@ -1,0 +1,6 @@
+{
+  "username": "O685793",
+  "notifyOnTicketAssignedToMe": false,
+  "notifyOnTicketBreachingSLA": true,
+  "ticketRefreshIntervalMins": 75
+}

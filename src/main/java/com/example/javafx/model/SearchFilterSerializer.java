@@ -21,13 +21,13 @@ public class SearchFilterSerializer extends JsonSerializer<SearchFilter> {
                 jsonGenerator.writeString(queue);
             }
             jsonGenerator.writeEndArray();
-
+            jsonGenerator.writeBooleanField("default", filter.isDefault());
             jsonGenerator.writeArrayFieldStart("statuses");
-            for (String status : filter.getStatuses()) {
-                jsonGenerator.writeString(status);
+            for (Ticket.IncidentStatus status : filter.getStatuses()) {
+                jsonGenerator.writeString(status.name());
             }
             jsonGenerator.writeEndArray();
-
+            jsonGenerator.writeStringField("name", filter.getName());
             jsonGenerator.writeStringField("startDate", filter.getStartDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
             jsonGenerator.writeStringField("endDate", filter.getEndDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
         }

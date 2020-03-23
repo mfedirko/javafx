@@ -1,0 +1,12 @@
+[
+  {
+    "id": 0,
+    "queues": ["ABC123"],
+    "statuses": ["TRANSFERRED","NEW"],
+    "onlyAssignedToMe": false,
+    "startDate": "2019-05-02",
+    "endDate": "2020-01-05",
+    "name": "Default Template",
+    "default": true
+  }
+]

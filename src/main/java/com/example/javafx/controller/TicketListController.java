@@ -1,9 +1,15 @@
 package com.example.javafx.controller;
 
 import com.example.javafx.config.Constants;
+import com.example.javafx.config.javafx.components.AlertBox;
+import com.example.javafx.config.javafx.components.ConfirmBox;
+import com.example.javafx.model.SearchFilter;
 import com.example.javafx.model.Ticket;
+import com.example.javafx.model.event.FilterChangedEvent;
+import com.example.javafx.repository.impl.SearchFilterRepository;
+import com.example.javafx.model.SearchContext;
+import com.example.javafx.service.MockTicketsService;
 import com.example.javafx.utils.WindowUtils;
-import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -13,15 +19,22 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import org.springframework.context.ApplicationListener;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 
+import java.util.Objects;
+
 @Controller
-public class TicketListController {
+public class TicketListController implements ApplicationListener<FilterChangedEvent> {
     private WindowUtils windowUtils;
-    public TicketListController(WindowUtils windowUtils) {
+    private SearchFilterRepository filterRepository;
+    private MockTicketsService ticketsService;
+    public TicketListController(WindowUtils windowUtils, SearchFilterRepository filterRepository,
+                                MockTicketsService ticketsService) {
         this.windowUtils = windowUtils;
+        this.filterRepository = filterRepository;
+        this.ticketsService = ticketsService;
     }
 
     // columns
@@ -51,14 +64,80 @@ public class TicketListController {
     public MenuItem bulkModifyOpt;
     @FXML
     public MenuItem filterMenuOpt;
-
+    @FXML
+    public Menu searchFiltersMenu;
 
     @FXML
     public void initialize() {
+        if (SearchContext.activeSearchFilter() == null) {
+            SearchContext.setActiveSearchFilter(filterRepository.getDefaultFilter());
+        }
         setupColumns();
+        setupFiltersMenu();
         loadData();
     }
 
+    private void setupFiltersMenu() {
+        searchFiltersMenu.getItems().clear();
+        for (SearchFilter filter : filterRepository.getAllFilters()) {
+            Menu filterMenuItem = new Menu();
+            String menuName = filter.getName();
+            int insertAtIndex = searchFiltersMenu.getItems().size();
+
+            // activate option
+            MenuItem activate = new MenuItem("Activate");
+            if (activate.getOnAction() == null) {
+                activate.setOnAction(e -> {
+                    activateFilter(filter);
+                    setupFiltersMenu();
+                });
+            }
+
+            // edit option
+            MenuItem edit = new MenuItem("Edit");
+            if (edit.getOnAction() == null) {
+                edit.setOnAction(evt -> {
+                    SearchContext.setFilterToEdit(filterRepository.findByName(filter));
+                    windowUtils.openModal(new Stage(StageStyle.DECORATED), new ClassPathResource(Constants.SEARCH_FILTER_FXML), "Search Filter", Modality.APPLICATION_MODAL);
+                });
+            }
+
+            // delete option
+            MenuItem delete = new MenuItem("Delete");
+            if (delete.getOnAction() == null) {
+                delete.setOnAction(evt -> {
+                    boolean confirmed = ConfirmBox.display("Delete search filter", "Confirm whether to delete the search filter");
+                    if (!confirmed) return;
+
+                    if (filter.isDefault()) {
+                        AlertBox.display("Error", "Please choose another default search filter before deleting");
+                    } else if (filter.equals(SearchContext.activeSearchFilter())) {
+                        AlertBox.display("Error", "Please set another active search filter before deleting");
+
+                    } else {
+                        filterRepository.deleteSearchFilter(filter);
+                        setupFiltersMenu(); //refresh the filters in menu
+                    }
+                });
+            }
+
+            filterMenuItem.getItems().addAll(activate, edit, delete);
+            if (filter.isDefault()) {
+                menuName += " (default)";
+                insertAtIndex = 0;
+            }
+            if (filter.equals(SearchContext.activeSearchFilter())) menuName += " (active)";
+
+            filterMenuItem.setText(menuName);
+            searchFiltersMenu.getItems().add(insertAtIndex, filterMenuItem);
+
+        }
+    }
+
+    private void activateFilter(SearchFilter filter) {
+        SearchContext.setActiveSearchFilter(filterRepository.findByName(filter));
+        loadData();
+    }
     @FXML
     public void closeApp() {
         Platform.exit();
@@ -82,11 +161,13 @@ public class TicketListController {
 
     @FXML
     public void filterTickets() {
-       windowUtils.openModal(new Stage(StageStyle.DECORATED), new ClassPathResource(Constants.SEARCH_FILTER_FXML), "Search Filter", Modality.WINDOW_MODAL);
+        SearchContext.setFilterToEdit(filterRepository.findByName(SearchContext.activeSearchFilter()));
+        windowUtils.openModal(new Stage(StageStyle.DECORATED), new ClassPathResource(Constants.SEARCH_FILTER_FXML), "Search Filter", Modality.WINDOW_MODAL);
     }
     @FXML
     public void refreshTickets() {
-        System.out.println("Refreshing....");
+        System.out.print("Refreshing.... Active search= ");
+        System.out.println(SearchContext.activeSearchFilter());
         System.out.println(ticketTable.getItems());
         loadData();
     }
@@ -102,12 +183,11 @@ public class TicketListController {
     }
 
     private void loadData() {
-        ticketTable.getItems().setAll(
-            new Ticket(10249249249L, "The printer failed", "Joebob", "Transferred", null, "ABC3SUPPGP"),
-            new Ticket(10049499423L, "Dog failed", "Jimmy", "Transferred", null, "ABC3SUPPGP"),
-            new Ticket(10432094223L, "I'm bored", "John", "Acknowledged", "O44442", "ABC2SUPPGP"),
-            new Ticket(14923904823L, "Cat is hungry", "George", "Acknowledged", "H204929", "ABC2SUPPGP")
-        );
+        Thread dataLoader = new Thread(() -> {
+            ticketTable.getItems().clear();
+            ticketTable.getItems().setAll(ticketsService.findTickets());
+        });
+        dataLoader.start();
     }
 
     private void setupColumns() {
@@ -126,4 +206,14 @@ public class TicketListController {
     }
 
 
+    @Override
+    public void onApplicationEvent(FilterChangedEvent filterChangedEvent) {
+        SearchFilter filter = filterChangedEvent.getFilter();
+        String activeFilterName = SearchContext.activeSearchFilter() != null ? SearchContext.activeSearchFilter().getName() : null;
+        if (Objects.equals(filter.getName(), activeFilterName)) {
+            activateFilter(filter);
+        } else if (filter.isDefault()) {
+            setupFiltersMenu();
+        }
+    }
 }

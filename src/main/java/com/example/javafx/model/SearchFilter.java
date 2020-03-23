@@ -1,5 +1,6 @@
 package com.example.javafx.model;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -11,24 +12,32 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @JsonSerialize(using = SearchFilterSerializer.class)
+@JsonDeserialize(using = SearchFilterDeserializer.class)
 public class SearchFilter {
     private ListProperty<String> queues = new SimpleListProperty<>();
-    private ListProperty<String> statuses = new SimpleListProperty<>();
+    private ListProperty<Ticket.IncidentStatus> statuses = new SimpleListProperty<>();
     private BooleanProperty onlyAssignedToMe = new SimpleBooleanProperty();
     private ObjectProperty<LocalDate> startDate = new SimpleObjectProperty<>();
     private ObjectProperty<LocalDate>  endDate = new SimpleObjectProperty<>();
+    private boolean isDefault;
+    private StringProperty name = new SimpleStringProperty();
 
     public SearchFilter(SearchFilter other) {
         LocalDate otherStartDate = other.getStartDate();
         LocalDate otherEndDate = other.getEndDate();
         this.setStartDate(LocalDate.of(otherStartDate.getYear(), otherStartDate.getMonth(), otherStartDate.getDayOfMonth()));
         this.setEndDate(LocalDate.of(otherEndDate.getYear(), otherEndDate.getMonth(), otherEndDate.getDayOfMonth()));
+        this.setStatuses(FXCollections.observableArrayList());
+        other.getStatuses().forEach(s -> this.getStatuses().add(s));
+        this.setName(other.getName());
 
-        this.setStatuses(FXCollections.observableList(other.getStatuses()));
-        this.setQueues(FXCollections.observableList(other.getQueues()));
+        this.setQueues(FXCollections.observableArrayList());
+        other.getQueues().forEach(q -> this.getQueues().add(q));
+
         this.setOnlyAssignedToMe(other.isOnlyAssignedToMe());
     }
 
@@ -37,22 +46,38 @@ public class SearchFilter {
         setQueues(FXCollections.observableArrayList(
                 "M2CMCGOPNET4", "M2CMCGOSUA", "M2CMCGODATAMGMT",
                 "M3CMCGOPNET4", "M3CMCGOSUA"));
-        setStatuses(FXCollections.observableList(
-                Arrays.stream(Ticket.IncidentStatus.values())
-                        .map(Ticket.IncidentStatus::getText)
-                        .collect(Collectors.toList()))
-        );
+        setStatuses(FXCollections.observableArrayList(Ticket.IncidentStatus.values()));
         setOnlyAssignedToMe(false);
         setStartDate(LocalDate.now().minus(30, ChronoUnit.DAYS));
         setEndDate(LocalDate.now().plus(1, ChronoUnit.DAYS));
     }
 
-    public SearchFilter(List<String> queues, List<String> statuses, boolean onlyAssignedToMe, LocalDate startDate, LocalDate endDate) {
+    public SearchFilter(List<String> queues, List<Ticket.IncidentStatus> statuses, boolean onlyAssignedToMe, LocalDate startDate, LocalDate endDate) {
         this.setQueues(FXCollections.observableList(queues));
         this.setStatuses(FXCollections.observableList(statuses));
         this.setOnlyAssignedToMe(onlyAssignedToMe);
         this.startDate = new SimpleObjectProperty<>(startDate);
         this.endDate = new SimpleObjectProperty<>(endDate);
+    }
+
+    public boolean isDefault() {
+        return isDefault;
+    }
+
+    public void setDefault(boolean aDefault) {
+        isDefault = aDefault;
+    }
+
+    public String getName() {
+        return name.get();
+    }
+
+    public StringProperty nameProperty() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name.set(name);
     }
 
     public ObservableList<String> getQueues() {
@@ -67,15 +92,15 @@ public class SearchFilter {
         this.queues.set(queues);
     }
 
-    public ObservableList<String> getStatuses() {
+    public ObservableList<Ticket.IncidentStatus> getStatuses() {
         return statuses.get();
     }
 
-    public ListProperty<String> statusesProperty() {
+    public ListProperty<Ticket.IncidentStatus> statusesProperty() {
         return statuses;
     }
 
-    public void setStatuses(ObservableList<String> statuses) {
+    public void setStatuses(ObservableList<Ticket.IncidentStatus> statuses) {
         this.statuses.set(statuses);
     }
 
@@ -124,5 +149,23 @@ public class SearchFilter {
                 ", startDate=" + startDate +
                 ", endDate=" + endDate +
                 '}' + '\n';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchFilter filter = (SearchFilter) o;
+        return Objects.equals(getQueues(), filter.getQueues()) &&
+                Objects.equals(getStatuses(), filter.getStatuses()) &&
+                Objects.equals(isOnlyAssignedToMe(), filter.isOnlyAssignedToMe()) &&
+                Objects.equals(getStartDate(), filter.getStartDate()) &&
+                Objects.equals(getEndDate(), filter.getEndDate()) &&
+                Objects.equals(getName(), filter.getName());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getQueues(), getStatuses(), isOnlyAssignedToMe(), getStartDate(), getEndDate(), getName());
     }
 }

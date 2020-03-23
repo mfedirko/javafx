@@ -1,34 +1,33 @@
 package com.example.javafx.controller;
 
 import com.example.javafx.model.SearchFilter;
-import com.example.javafx.model.Settings;
 import com.example.javafx.model.Ticket;
-import javafx.beans.InvalidationListener;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
+import com.example.javafx.model.event.FilterChangedEvent;
+import com.example.javafx.repository.impl.SearchFilterRepository;
+import com.example.javafx.model.SearchContext;
+import com.example.javafx.utils.TextAreaToListConverter;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.util.StringConverter;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Controller;
-
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
 
 @Controller
 public class SearchFilterController {
 
-    private final SearchFilter searchFilter;
-    private final Settings settings;
+    private SearchFilter searchFilterToEdit;
+    private final SearchFilterRepository repo;
 
-    private SearchFilter formSearchFilter;
+    private ApplicationEventPublisher publisher;
 
-    public SearchFilterController(SearchFilter searchFilter, Settings settings) {
-        this.searchFilter = searchFilter;
-        this.settings = settings;
+    private SearchFilter copyOfSearchFilter;
+
+    public SearchFilterController(SearchFilterRepository searchFilter,
+                                  ApplicationEventPublisher eventPublisher) {
+        this.repo = searchFilter;
+        this.publisher = eventPublisher;
+        initializeFilter();
     }
 
     // fields
@@ -39,27 +38,34 @@ public class SearchFilterController {
     @FXML
     public Label errors;
     @FXML
+    public Label successMsg;
+    @FXML
+    public Button saveBtn;
+    @FXML
     public TextArea queues;
     @FXML
     public ListView statuses;
+    @FXML
+    public TextField filterName;
     @FXML
     public CheckBox onlyAssignedToMe;
 
     public boolean validateForm() {
         errors.setText("");
+        successMsg.setText("");
         boolean isValid = true;
-        if (formSearchFilter.getQueues() == null || formSearchFilter.getQueues().isEmpty()) {
+        if (copyOfSearchFilter.getQueues() == null || copyOfSearchFilter.getQueues().isEmpty()) {
             addError("Must select at least 1 queue!");
             isValid = false;
-        }
-        if (formSearchFilter.getEndDate() == null || formSearchFilter.getStartDate() == null) {
+        } else
+        if (copyOfSearchFilter.getEndDate() == null || copyOfSearchFilter.getStartDate() == null) {
             addError("Start and end dates must be specified!");
             isValid = false;
-        } else if (formSearchFilter.getEndDate().isBefore(formSearchFilter.getStartDate())) {
+        } else if (copyOfSearchFilter.getEndDate().isBefore(copyOfSearchFilter.getStartDate())) {
             addError("Start date must be before end date!");
             isValid = false;
         }
-        if (formSearchFilter.getStatuses() == null || formSearchFilter.getStatuses().isEmpty()) {
+        if (copyOfSearchFilter.getStatuses() == null || copyOfSearchFilter.getStatuses().isEmpty()) {
             addError("Must select at least 1 status!");
             isValid = false;
         }
@@ -77,68 +83,81 @@ public class SearchFilterController {
 
     @FXML
     public void saveSearchFilter() {
-        System.out.println(formSearchFilter);
-        System.out.println(formSearchFilter.getStartDate());
-        System.out.println(formSearchFilter.getEndDate());
+        System.out.println(copyOfSearchFilter);
+        System.out.println(copyOfSearchFilter.getStartDate());
+        System.out.println(copyOfSearchFilter.getEndDate());
         if (validateForm()) {
-            this.searchFilter.setStartDate(formSearchFilter.getStartDate());
-            this.searchFilter.setEndDate(formSearchFilter.getEndDate());
-            this.searchFilter.setOnlyAssignedToMe(formSearchFilter.isOnlyAssignedToMe());
-            this.searchFilter.setStatuses(formSearchFilter.getStatuses());
-            this.searchFilter.setQueues(formSearchFilter.getQueues());
+            SearchFilter toSave = new SearchFilter(copyOfSearchFilter);
+            SearchFilter savedEntity = this.repo.saveSearchFilter(toSave);
+            boolean saved = savedEntity != null;
+            if (!saved) addError("Search filter does not exist!");
+            else {
+                publisher.publishEvent(new FilterChangedEvent(this, savedEntity));
+                successMsg.setText("Search filter '" + savedEntity.getName() + "' saved successfully!");
+            }
+        }
+    }
+    @FXML
+    public void newSearchFilter() {
+        if (validateForm()) {
+            SearchFilter toSave = new SearchFilter(copyOfSearchFilter);
+            SearchFilter savedEntity = this.repo.newSearchFilter(toSave);
+            boolean saved = savedEntity != null;
+            if (!saved) addError("Duplicate search filter with this name already exists!");
+            else {
+                successMsg.setText("New search filter '" + savedEntity.getName() + "' created successfully!");
+            }
         }
     }
     @FXML
     public void setAsDefaultSearch() {
         if (validateForm()) {
-            saveSearchFilter();
-            settings.setDefaultSearchFilter(this.searchFilter);
+            if (copyOfSearchFilter.isDefault()) addError("This is already the default search filter");
+            else {
+                repo.setDefaultFilter(copyOfSearchFilter);
+                publisher.publishEvent(new FilterChangedEvent(this, repo.findByName(copyOfSearchFilter)));
+                successMsg.setText("Default search filter updated!");
+            }
         }
     }
 
+    private void initializeFilter() {
+        if (SearchContext.getFilterToEdit() != null) {
+            this.searchFilterToEdit = SearchContext.getFilterToEdit();
+        } else this.searchFilterToEdit = repo.getDefaultFilter();
+        copyOfSearchFilter = new SearchFilter(searchFilterToEdit);
+    }
     @FXML
     public void initialize() {
-        formSearchFilter = new SearchFilter(searchFilter);
+        initializeFilter();
         initializeBinds();
     }
 
     private void initializeBinds() {
-        startDate.valueProperty().setValue(formSearchFilter.getStartDate());
-        endDate.valueProperty().setValue(formSearchFilter.getEndDate());
+        // start date
+        startDate.valueProperty().setValue(copyOfSearchFilter.getStartDate());
+        copyOfSearchFilter.startDateProperty().bind(startDate.valueProperty());
 
-        formSearchFilter.startDateProperty().bind(startDate.valueProperty());
-        formSearchFilter.endDateProperty().bind(endDate.valueProperty());
+        // filter name
+        filterName.textProperty().bindBidirectional(copyOfSearchFilter.nameProperty());
 
-        onlyAssignedToMe.selectedProperty().bindBidirectional(formSearchFilter.onlyAssignedToMeProperty());
+        // end date
+        endDate.valueProperty().setValue(copyOfSearchFilter.getEndDate());
+        copyOfSearchFilter.endDateProperty().bind(endDate.valueProperty());
 
-        queues.textProperty().bindBidirectional(formSearchFilter.queuesProperty(), new StringConverter<ObservableList<String>>() {
-            @Override
-            public String toString(ObservableList<String> object) {
-                if (object != null) {
-                    StringBuilder sb = new StringBuilder();
-                    object.forEach(s -> sb.append(s).append('\n'));
-                    return sb.toString();
-                }
-                return "";
-            }
+        // only assigned to me
+        onlyAssignedToMe.selectedProperty().bindBidirectional(copyOfSearchFilter.onlyAssignedToMeProperty());
 
-            @Override
-            public ObservableList<String> fromString(String string) {
-                if (string != null) {
-                    ObservableList<String> list = FXCollections.observableArrayList();
-                    String[] split = string.trim().split("\\s*,\\s*|\\s+|\\n+");
-                    list.setAll(split);
-                    return list;
-                }
-                return FXCollections.emptyObservableList();
-            }
-        });
+        // queues
+        queues.textProperty().bindBidirectional(copyOfSearchFilter.queuesProperty(), new TextAreaToListConverter());
 
+        // statuses
         statuses.setItems(FXCollections.observableArrayList(Ticket.IncidentStatus.values()));
         statuses.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        statuses.getSelectionModel().getSelectedItems().addAll("NEW", "TRANSFERRED");
-        statuses.selectionModelProperty().addListener((observable, oldValue, newValue) -> {
-            System.out.println(newValue);
+        copyOfSearchFilter.getStatuses().forEach(s -> statuses.getSelectionModel().select(s));
+        statuses.getSelectionModel().getSelectedItems().addListener((ListChangeListener) c -> {
+            copyOfSearchFilter.getStatuses().setAll(statuses.getSelectionModel().getSelectedItems());
         });
+
     }
 }

@@ -16,7 +16,6 @@ public class SettingsSerializer extends JsonSerializer<Settings> {
             jsonGenerator.writeNumberField("ticketRefreshIntervalMins", settings.getTicketRefreshIntervalMins());
             jsonGenerator.writeBooleanField("notifyOnTicketAssignedToMe", settings.isNotifyOnTicketAssignedToMe());
             jsonGenerator.writeBooleanField("notifyOnTicketBreachingSLA", settings.isNotifyOnTicketsBreachingSLA());
-            jsonGenerator.writeObjectField("defaultSearchFilter", settings.getDefaultSearchFilter());
         }
         jsonGenerator.writeEndObject();
     }

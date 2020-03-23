@@ -261,7 +261,7 @@ public class Ticket {
 
         public static IncidentStatus fromText(String text) {
             for (IncidentStatus status : IncidentStatus.values()) {
-                if (status.getText().equals(text)) {
+                if (status.getText().equals(text) || status.name().equals(text)) {
                     return status;
                 }
             }

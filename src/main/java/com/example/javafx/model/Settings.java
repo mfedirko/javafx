@@ -17,13 +17,10 @@ import java.net.URL;
 @JsonSerialize(using = SettingsSerializer.class)
 @JsonDeserialize(using = SettingsDeserializer.class)
 public class Settings  {
-    private Resource saveFile;
 
     // User
     private StringProperty username = new SimpleStringProperty();
 
-    // Search
-    private SearchFilter defaultSearchFilter;
 
     // Notify
     private BooleanProperty notifyOnTicketAssignedToMe = new SimpleBooleanProperty(false);
@@ -42,14 +39,6 @@ public class Settings  {
 
     public void setUsername(String username) {
         this.username.set(username);
-    }
-
-    public SearchFilter getDefaultSearchFilter() {
-        return defaultSearchFilter;
-    }
-
-    public void setDefaultSearchFilter(SearchFilter defaultSearchFilter) {
-        this.defaultSearchFilter = defaultSearchFilter;
     }
 
     public boolean isNotifyOnTicketAssignedToMe() {
@@ -88,23 +77,6 @@ public class Settings  {
         this.ticketRefreshIntervalMins.set(ticketRefreshIntervalMins);
     }
 
-    public void setSaveFile(Resource saveFile) {
-        this.saveFile = saveFile;
-    }
 
-    @PreDestroy
-    public void beforeDestroyed() {
-        System.out.println("Attempting to save settings to file before exit");
-        if (saveFile != null) {
-            try {
-                new ObjectMapper().writeValue(saveFile.getFile(), this);
-                System.out.println("Settings saved successfully!");
-            } catch (IOException e) {
-                System.out.println("Failed to save settings to file!");
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("No save file specified!");
-        }
-    }
+
 }

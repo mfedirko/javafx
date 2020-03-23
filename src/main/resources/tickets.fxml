@@ -26,6 +26,11 @@
                   <CheckMenuItem fx:id="enableBulkModify" mnemonicParsing="false" onAction="#onBulkModify" text="Enable Bulk Modify" />
             </items>
           </Menu>
+            <Menu mnemonicParsing="false" text="Search">
+              <items>
+                  <Menu fx:id="searchFiltersMenu" mnemonicParsing="false" text="Filters" />
+              </items>
+            </Menu>
           <Menu mnemonicParsing="false" text="Help">
             <items>
               <MenuItem mnemonicParsing="false" text="About" />
@@ -49,7 +54,7 @@
               <items>
                   <MenuItem fx:id="bulkModifyOpt" mnemonicParsing="false" text="Bulk Modify" visible="false" />
                   <MenuItem fx:id="detailsMenuOpt" mnemonicParsing="false" onAction="#showTicketDetails" text="View Details" />
-                  <MenuItem fx:id="filterMenuOpt" mnemonicParsing="false" onAction="#filterTickets" text="Filter" />
+                  <MenuItem fx:id="filterMenuOpt" mnemonicParsing="false" onAction="#filterTickets" text="Edit Filter" />
                   <MenuItem fx:id="refreshMenuOpt" mnemonicParsing="false" onAction="#refreshTickets" text="Refresh" />
 
               </items>
